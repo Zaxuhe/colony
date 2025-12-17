@@ -1,0 +1,14 @@
+# Base config shared across envs
+@dims env, realm, region;
+@envDefaults env=dev, realm=US, region=us-east-1;
+
+*.*.*.log.level := "info";
+*.*.*.java.HttpClientConfig := {
+  connectTimeout: 1000,
+  maxConnectRetries: 1,
+  closeAfterUse: false,
+  maxReplyThreads: 100,
+};
+
+*.*.*.bsfclient.defaultInterceptors := [];
+*.*.*.bsfclient.defaultInterceptors += "@bsfclient.AAAInterceptor";

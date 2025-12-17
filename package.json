@@ -1,0 +1,66 @@
+{
+  "name": "@ant.sh/colony",
+  "version": "0.1.0",
+  "description": "Scope-based config loader for Node.js with rules, interpolation, and multi-environment support",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "bin": {
+    "colony": "./src/cli.js"
+  },
+  "files": [
+    "dist/",
+    "src/*.js",
+    "src/*.d.ts",
+    "src/providers/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "build:playground": "node scripts/build-playground.js",
+    "test": "node --test test/*.test.js",
+    "test:watch": "node --test --watch test/*.test.js",
+    "lint": "node ./src/cli.js lint --entry ./examples/config/app.colony",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "config",
+    "configuration",
+    "settings",
+    "environment",
+    "scope-based",
+    "rules",
+    "interpolation",
+    "multi-environment",
+    "cli"
+  ],
+  "author": "Zaxuhe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zaxuhe/colony.git"
+  },
+  "homepage": "https://colony.ant.sh",
+  "bugs": {
+    "url": "https://github.com/Zaxuhe/colony/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.2",
+    "json5": "^2.2.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
+}

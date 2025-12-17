@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Colony Documentation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container docs-container">
+    <nav class="top-nav">
+      <a href="index.html" class="nav-link">Playground</a>
+      <a href="docs.html" class="nav-link active">Documentation</a>
+    </nav>
+
+    <main class="docs-content">
+      <aside class="docs-sidebar">
+        <nav class="docs-toc">
+          <h3>Contents</h3>
+          <ul>
+            <li><a href="#installation">Installation</a></li>
+            <li><a href="#core-concepts">Core Concepts</a></li>
+            <li><a href="#config-file-syntax">Config File Syntax</a></li>
+            <li><a href="#javascript-api">JavaScript API</a></li>
+            <li><a href="#cli-reference">CLI Reference</a></li>
+            <li><a href="#secrets-management">Secrets Management</a></li>
+            <li><a href="#security">Security</a></li>
+            <li><a href="#typescript">TypeScript</a></li>
+            <li><a href="#examples">Examples</a></li>
+          </ul>
+        </nav>
+      </aside>
+
+      <article class="docs-article">
+        <h1>Colony Documentation</h1>
+        <p class="lead">Complete documentation for Colony, the environment-aware config loader for Node.js.</p>
+
+        <section id="installation">
+          <h2>Installation</h2>
+          <pre><code>npm install @ant.sh/colony</code></pre>
+          <p><strong>Requirements:</strong> Node.js 18+</p>
+          <p><strong>Optional peer dependencies:</strong></p>
+          <ul>
+            <li><code>@aws-sdk/client-secrets-manager</code> - For AWS Secrets Manager integration</li>
+          </ul>
+        </section>
+
+        <section id="core-concepts">
+          <h2>Core Concepts</h2>
+
+          <h3>What is a Dimension?</h3>
+          <p>A <strong>dimension</strong> is an axis along which your configuration varies. Think of it as a question your config needs to answer:</p>
+          <ul>
+            <li>"Which <strong>environment</strong> am I running in?" &rarr; <code>env</code> dimension (dev, staging, prod)</li>
+            <li>"Which <strong>region</strong> am I deployed to?" &rarr; <code>region</code> dimension (us, eu, asia)</li>
+            <li>"Which <strong>customer</strong> is this for?" &rarr; <code>tenant</code> dimension (acme, globex, initech)</li>
+          </ul>
+          <p><strong>The key insight:</strong> Instead of creating separate config files for each combination (config-dev.json, config-prod.json, config-prod-eu.json...), you define dimensions and write rules that apply to specific combinations.</p>
+
+          <h3>Declaring Dimensions</h3>
+          <p>Use <code>@dims</code> at the top of your config file:</p>
+          <pre><code>@dims env;                    # Single dimension
+@dims env, region;            # Two dimensions
+@dims env, region, tenant;    # Three dimensions</code></pre>
+          <p>The order matters - it determines how you write your rules.</p>
+
+          <h3>How Dimensions Work: A Complete Example</h3>
+          <p>Let's say you're building a SaaS app deployed across environments and regions:</p>
+          <pre><code>@dims env, region;
+
+# Default for ALL environments and ALL regions
+*.*.database.port = 5432;
+*.*.database.pool.size = 10;
+*.*.api.timeout = 5000;
+
+# Defaults for development (any region)
+dev.*.database.host = "localhost";
+dev.*.api.url = "http://localhost:3000";
+
+# Defaults for production (any region)
+prod.*.database.host = "prod-db.internal";
+prod.*.database.pool.size = 50;
+prod.*.api.timeout = 10000;
+
+# Region-specific overrides
+prod.us.database.host = "prod-db-us.internal";
+prod.us.api.url = "https://api-us.myapp.com";
+
+prod.eu.database.host = "prod-db-eu.internal";
+prod.eu.api.url = "https://api-eu.myapp.com";</code></pre>
+
+          <p>Now in your code:</p>
+          <pre><code class="language-js">// Development
+const devConfig = await loadColony({
+  entry: "./config/app.colony",
+  ctx: { env: "dev", region: "us" }
+});
+// database.host &rarr; "localhost"
+// database.pool.size &rarr; 10
+
+// Production US
+const prodUsConfig = await loadColony({
+  entry: "./config/app.colony",
+  ctx: { env: "prod", region: "us" }
+});
+// database.host &rarr; "prod-db-us.internal"
+// database.pool.size &rarr; 50</code></pre>
+
+          <h3>Wildcards (*)</h3>
+          <p>The <code>*</code> wildcard matches <strong>any value</strong> for that dimension:</p>
+          <pre><code>@dims env, region;
+
+*.*. ...        # Matches any env, any region (default)
+prod.*. ...     # Matches prod env, any region
+*.us. ...       # Matches any env, us region
+prod.us. ...    # Matches only prod env AND us region</code></pre>
+
+          <h3>Specificity: Which Rule Wins?</h3>
+          <p>When multiple rules match, Colony picks the <strong>most specific</strong> one.</p>
+          <p><strong>Specificity</strong> = count of non-wildcard dimension values.</p>
+          <pre><code>@dims env, region;
+
+*.*.timeout = 1000;           # specificity: 0 (two wildcards)
+prod.*.timeout = 2000;        # specificity: 1 (one wildcard)
+prod.us.timeout = 3000;       # specificity: 2 (no wildcards)</code></pre>
+          <p>For <code>ctx: { env: "prod", region: "us" }</code>:</p>
+          <ul>
+            <li>All three rules match</li>
+            <li><code>prod.us.timeout = 3000</code> wins (highest specificity)</li>
+          </ul>
+          <p><strong>Tie-breaker:</strong> If two rules have the same specificity, the one defined later wins.</p>
+        </section>
+
+        <section id="config-file-syntax">
+          <h2>Config File Syntax</h2>
+
+          <h3>File Extension</h3>
+          <p>Colony config files use the <code>.colony</code> extension.</p>
+
+          <h3>Comments</h3>
+          <pre><code># Line comment (hash)
+// Line comment (double slash)
+
+/* Block comment */
+
+/*
+  Multi-line
+  block comment
+*/</code></pre>
+
+          <h3>Directives</h3>
+          <p>Directives start with <code>@</code> and configure the parser:</p>
+          <pre><code>@dims env, region;              # Declare dimensions
+@include "./base.colony";       # Include another file
+@include "./envs/*.colony";     # Include with glob pattern
+@require database.host;         # Require key to be set
+@envDefaults env=dev;           # Default context values</code></pre>
+
+          <h3>Operators</h3>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th>Operator</th>
+                <th>Name</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>=</code></td><td>Set</td><td>Set value, overwrites existing</td></tr>
+              <tr><td><code>:=</code></td><td>Set if missing</td><td>Set only if key doesn't exist</td></tr>
+              <tr><td><code>|=</code></td><td>Merge</td><td>Deep merge objects, overwrite primitives</td></tr>
+              <tr><td><code>+=</code></td><td>Append</td><td>Append to array (creates array if needed)</td></tr>
+              <tr><td><code>-=</code></td><td>Remove</td><td>Remove value from array</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Examples:</strong></p>
+          <pre><code># Set (overwrites)
+*.timeout = 5000;
+
+# Set if missing (won't overwrite)
+*.timeout := 3000;
+
+# Merge objects
+*.database |= { pool: { min: 5 } };
+
+# Append to array
+*.features += "dark-mode";
+
+# Remove from array
+prod.features -= "debug-panel";</code></pre>
+
+          <h3>Values</h3>
+          <p>Colony uses JSON5 for values, supporting:</p>
+          <pre><code># Strings
+*.name = "MyApp";
+*.name = 'MyApp';                    # single quotes ok
+
+# Numbers
+*.port = 5432;
+*.ratio = 0.75;
+
+# Booleans
+*.enabled = true;
+*.debug = false;
+
+# Null
+*.optional = null;
+
+# Arrays
+*.hosts = ["a.com", "b.com"];
+
+# Objects
+*.database = {
+  host: "localhost",
+  port: 5432,
+  ssl: true
+};
+
+# Trailing commas allowed
+*.list = [1, 2, 3,];</code></pre>
+
+          <h3>Heredoc Strings</h3>
+          <p>For multi-line strings:</p>
+          <pre><code>*.template = &lt;&lt;&lt;EOF
+Hello, ${name}!
+Welcome to our service.
+EOF;</code></pre>
+
+          <h3>Interpolation</h3>
+          <p><strong>Environment Variables:</strong></p>
+          <pre><code>*.api_key = "${ENV:API_KEY}";
+*.home = "${ENV:HOME}";</code></pre>
+          <p><strong>Context Values:</strong></p>
+          <pre><code>*.endpoint = "https://api.${ctx.region}.example.com";</code></pre>
+          <p><strong>Custom Variables:</strong></p>
+          <pre><code>*.data_path = "${VAR:ROOT}/data";</code></pre>
+        </section>
+
+        <section id="javascript-api">
+          <h2>JavaScript API</h2>
+
+          <h3>loadColony(options)</h3>
+          <p>Load and resolve a colony configuration.</p>
+          <pre><code class="language-js">import { loadColony } from "@ant.sh/colony";
+
+const config = await loadColony({
+  // Required
+  entry: "./config/app.colony",
+
+  // Optional
+  ctx: { env: "prod", region: "us" },
+  dims: ["env", "region"],           // Override @dims
+  vars: { ROOT: "/app" },            // Custom ${VAR:*} values
+  schema: (cfg) => validate(cfg),    // Validation hook
+  warnOnSkippedIncludes: false,
+
+  // Security sandbox
+  sandbox: {
+    basePath: "./config",
+    allowedEnvVars: ["NODE_ENV", "API_KEY"],
+    allowedVars: ["ROOT"],
+    maxIncludeDepth: 50,
+    maxFileSize: 1048576,
+  },
+
+  // Secrets
+  secrets: {
+    providers: [new AwsSecretsProvider()],
+    allowedSecrets: ["myapp/*"],
+    cache: { enabled: true, ttl: 300000 },
+    onNotFound: "warn",
+  },
+});</code></pre>
+
+          <p><strong>Returns:</strong> <code>ColonyConfig</code> object with:</p>
+          <pre><code class="language-js">// Direct property access
+config.database.host;
+
+// Methods
+config.get("database.host");           // Dot-notation access
+config.keys();                         // List all leaf keys
+config.explain("database.host");       // Debug info
+config.toJSON();                       // Plain object
+config.diff(otherConfig);              // Compare configs
+
+// Internal (non-enumerable)
+config._warnings;                      // Array of warnings
+config._trace;                         // Map of trace info</code></pre>
+
+          <h3>validateColony(entry)</h3>
+          <p>Validate syntax without resolving.</p>
+          <pre><code class="language-js">import { validateColony } from "@ant.sh/colony";
+
+const { valid, files, errors } = await validateColony("./config/app.colony");
+
+if (!valid) {
+  for (const { file, error } of errors) {
+    console.error(`${file}: ${error}`);
+  }
+}</code></pre>
+
+          <h3>diffColony(options)</h3>
+          <p>Compare configs with different contexts.</p>
+          <pre><code class="language-js">import { diffColony } from "@ant.sh/colony";
+
+const { cfg1, cfg2, diff } = await diffColony({
+  entry: "./config/app.colony",
+  ctx1: { env: "dev" },
+  ctx2: { env: "prod" },
+});
+
+console.log("Added in prod:", diff.added);
+console.log("Removed in prod:", diff.removed);
+console.log("Changed:", diff.changed);</code></pre>
+
+          <h3>lintColony(options)</h3>
+          <p>Find potential issues in config files.</p>
+          <pre><code class="language-js">import { lintColony } from "@ant.sh/colony";
+
+const { issues } = await lintColony({
+  entry: "./config/app.colony",
+  dims: ["env"],
+});
+
+for (const issue of issues) {
+  console.log(`[${issue.severity}] ${issue.type}: ${issue.message}`);
+}</code></pre>
+          <p><strong>Issue types:</strong></p>
+          <ul>
+            <li><code>parse_error</code> - Syntax error</li>
+            <li><code>shadowed_rule</code> - Rule overwritten by later rule</li>
+            <li><code>overridden_wildcard</code> - Wildcard always overridden</li>
+            <li><code>empty_include</code> - Include pattern matches no files</li>
+          </ul>
+        </section>
+
+        <section id="cli-reference">
+          <h2>CLI Reference</h2>
+
+          <h3>colony print</h3>
+          <p>Print resolved configuration.</p>
+          <pre><code>colony print --entry ./config/app.colony --ctx "env=prod,region=us"
+colony print --entry ./config/app.colony --ctx "env=prod" --format json
+colony print --entry ./config/app.colony --ctx "env=prod" --query "database"</code></pre>
+          <p><strong>Options:</strong></p>
+          <ul>
+            <li><code>--entry, -e</code> - Entry file path (required)</li>
+            <li><code>--ctx, -c</code> - Context as key=value pairs</li>
+            <li><code>--format, -f</code> - Output format: <code>json</code> (default) or <code>yaml</code></li>
+            <li><code>--query, -q</code> - Print only matching key path</li>
+          </ul>
+
+          <h3>colony diff</h3>
+          <p>Compare two contexts.</p>
+          <pre><code>colony diff --entry ./config/app.colony --ctx1 "env=dev" --ctx2 "env=prod"</code></pre>
+
+          <h3>colony validate</h3>
+          <p>Validate config syntax.</p>
+          <pre><code>colony validate --entry ./config/app.colony</code></pre>
+          <p><strong>Exit codes:</strong> 0 = Valid, 1 = Invalid</p>
+
+          <h3>colony lint</h3>
+          <p>Check for potential issues.</p>
+          <pre><code>colony lint --entry ./config/app.colony</code></pre>
+
+          <h3>colony includes</h3>
+          <p>List all included files.</p>
+          <pre><code>colony includes --entry ./config/app.colony</code></pre>
+
+          <h3>colony env</h3>
+          <p>Show environment variables used.</p>
+          <pre><code>colony env --entry ./config/app.colony</code></pre>
+        </section>
+
+        <section id="secrets-management">
+          <h2>Secrets Management</h2>
+          <p>Colony integrates with secret managers to keep credentials out of config files.</p>
+
+          <h3>Config Syntax</h3>
+          <pre><code>*.db.password = "${AWS:myapp/database#password}";
+*.api.key = "${VAULT:secret/data/myapp#api_key}";
+*.token = "${OPENBAO:secret/data/app#token}";</code></pre>
+          <p><strong>Pattern:</strong> <code>${PROVIDER:path#field}</code></p>
+          <ul>
+            <li><code>PROVIDER</code> - Provider prefix (AWS, VAULT, OPENBAO, or custom)</li>
+            <li><code>path</code> - Secret path/name in the provider</li>
+            <li><code>field</code> - Optional JSON field to extract</li>
+          </ul>
+
+          <h3>AWS Secrets Manager</h3>
+          <pre><code class="language-js">import { loadColony, AwsSecretsProvider } from "@ant.sh/colony";
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  secrets: {
+    providers: [
+      new AwsSecretsProvider({ region: "us-east-1" }),
+    ],
+  },
+});</code></pre>
+          <p><strong>Requirements:</strong></p>
+          <ul>
+            <li><code>npm install @aws-sdk/client-secrets-manager</code></li>
+            <li>AWS credentials configured (env vars, IAM role, etc.)</li>
+          </ul>
+
+          <h3>HashiCorp Vault</h3>
+          <pre><code class="language-js">import { loadColony, VaultProvider } from "@ant.sh/colony";
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  secrets: {
+    providers: [
+      new VaultProvider({
+        addr: "https://vault.example.com",
+        token: process.env.VAULT_TOKEN,
+      }),
+    ],
+  },
+});</code></pre>
+          <p><strong>Environment variables:</strong></p>
+          <ul>
+            <li><code>VAULT_ADDR</code> - Vault server address</li>
+            <li><code>VAULT_TOKEN</code> - Authentication token</li>
+            <li><code>VAULT_NAMESPACE</code> - Optional namespace</li>
+          </ul>
+
+          <h3>OpenBao</h3>
+          <pre><code class="language-js">import { loadColony, OpenBaoProvider } from "@ant.sh/colony";
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  secrets: {
+    providers: [new OpenBaoProvider()],
+  },
+});</code></pre>
+
+          <h3>Custom Providers</h3>
+          <pre><code class="language-js">import { registerSecretProvider } from "@ant.sh/colony";
+
+registerSecretProvider({
+  prefix: "CUSTOM",
+  fetch: async (key) => {
+    return await mySecretStore.get(key);
+  },
+});
+
+// Now ${CUSTOM:path} works in config files</code></pre>
+
+          <h3>Security Options</h3>
+          <pre><code class="language-js">secrets: {
+  providers: [...],
+  allowedSecrets: ["myapp/*", "shared/db-*"],  // Whitelist
+  cache: {
+    enabled: true,
+    ttl: 300000,      // 5 minutes
+    maxSize: 100,
+  },
+  onNotFound: "warn",  // "empty" | "warn" | "error"
+}</code></pre>
+        </section>
+
+        <section id="security">
+          <h2>Security</h2>
+
+          <h3>Sandbox Options</h3>
+          <p>When loading untrusted config files:</p>
+          <pre><code class="language-js">const config = await loadColony({
+  entry: untrustedPath,
+  sandbox: {
+    basePath: "./config",              // Restrict @include
+    allowedEnvVars: ["NODE_ENV"],      // Whitelist env vars
+    allowedVars: ["ROOT"],             // Whitelist custom vars
+    maxIncludeDepth: 10,               // Prevent infinite loops
+    maxFileSize: 1048576,              // 1MB max
+  },
+});</code></pre>
+
+          <h3>Path Traversal Protection</h3>
+          <p>When <code>basePath</code> is set, Colony blocks includes that resolve outside:</p>
+          <pre><code>@include "../../../etc/passwd";  # Blocked!
+@include "/etc/passwd";          # Blocked!</code></pre>
+
+          <h3>Warnings</h3>
+          <p>Access <code>_warnings</code> for security-related warnings:</p>
+          <pre><code class="language-js">const config = await loadColony({ ... });
+
+for (const warning of config._warnings) {
+  console.log(`[${warning.type}] ${warning.message}`);
+}</code></pre>
+          <p><strong>Warning types:</strong></p>
+          <ul>
+            <li><code>blocked_env_var</code> - Blocked by allowedEnvVars</li>
+            <li><code>blocked_var</code> - Blocked by allowedVars</li>
+            <li><code>blocked_secret</code> - Blocked by allowedSecrets</li>
+            <li><code>unknown_var</code> - Variable not found</li>
+            <li><code>secret_not_found</code> - Secret not found in provider</li>
+          </ul>
+        </section>
+
+        <section id="typescript">
+          <h2>TypeScript</h2>
+          <p>Colony includes full TypeScript definitions.</p>
+          <pre><code class="language-ts">import {
+  loadColony,
+  LoadColonyOptions,
+  ColonyConfig,
+  SecretProvider,
+  Warning,
+} from "@ant.sh/colony";
+
+// Options are fully typed
+const options: LoadColonyOptions = {
+  entry: "./config/app.colony",
+  ctx: { env: "prod" },
+};
+
+// Config object is typed
+const config: ColonyConfig = await loadColony(options);
+
+// Custom provider with type safety
+const provider: SecretProvider = {
+  prefix: "CUSTOM",
+  fetch: async (key: string): Promise&lt;string&gt; => {
+    return "value";
+  },
+};</code></pre>
+
+          <h3>Key Types</h3>
+          <pre><code class="language-ts">interface LoadColonyOptions {
+  entry: string;
+  dims?: string[];
+  ctx?: Record&lt;string, string&gt;;
+  vars?: Record&lt;string, string&gt;;
+  schema?: (cfg: ColonyConfig) => ColonyConfig | Promise&lt;ColonyConfig&gt;;
+  sandbox?: SandboxOptions;
+  warnOnSkippedIncludes?: boolean;
+  secrets?: SecretsOptions;
+}
+
+interface ColonyConfig {
+  get(path: string): unknown;
+  explain(path: string): TraceInfo | null;
+  toJSON(): Record&lt;string, unknown&gt;;
+  keys(): string[];
+  diff(other: ColonyConfig | Record&lt;string, unknown&gt;): DiffResult;
+  readonly _trace: Map&lt;string, TraceInfo&gt;;
+  readonly _warnings: Warning[];
+  [key: string]: unknown;
+}</code></pre>
+        </section>
+
+        <section id="examples">
+          <h2>Examples</h2>
+
+          <h3>Basic App Config</h3>
+          <p><strong>config/app.colony:</strong></p>
+          <pre><code>@dims env;
+
+# App settings
+*.app.name = "MyApp";
+*.app.version = "1.0.0";
+
+# Server
+*.server.port = 3000;
+*.server.host = "localhost";
+prod.server.host = "0.0.0.0";
+
+# Database
+*.database.host = "localhost";
+*.database.port = 5432;
+prod.database.host = "prod-db.internal";
+
+# Logging
+*.log.level = "debug";
+prod.log.level = "info";</code></pre>
+
+          <p><strong>app.js:</strong></p>
+          <pre><code class="language-js">import { loadColony } from "@ant.sh/colony";
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  ctx: { env: process.env.NODE_ENV || "dev" },
+});
+
+console.log(`Starting ${config.app.name} v${config.app.version}`);
+console.log(`Server: ${config.server.host}:${config.server.port}`);</code></pre>
+
+          <h3>With Secrets</h3>
+          <p><strong>config/app.colony:</strong></p>
+          <pre><code>@dims env;
+
+*.database.host = "localhost";
+*.database.user = "app";
+*.database.password = "${ENV:DB_PASSWORD}";
+
+prod.database.host = "prod-db.internal";
+prod.database.password = "${AWS:myapp/prod/db#password}";</code></pre>
+
+          <p><strong>app.js:</strong></p>
+          <pre><code class="language-js">import { loadColony, AwsSecretsProvider } from "@ant.sh/colony";
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  ctx: { env: process.env.NODE_ENV || "dev" },
+  secrets: {
+    providers: [new AwsSecretsProvider({ region: "us-east-1" })],
+  },
+});</code></pre>
+
+          <h3>With Schema Validation (Zod)</h3>
+          <pre><code class="language-js">import { loadColony } from "@ant.sh/colony";
+import { z } from "zod";
+
+const configSchema = z.object({
+  database: z.object({
+    host: z.string(),
+    port: z.number(),
+    name: z.string(),
+  }),
+  server: z.object({
+    port: z.number().min(1).max(65535),
+  }),
+});
+
+const config = await loadColony({
+  entry: "./config/app.colony",
+  ctx: { env: "prod" },
+  schema: (cfg) => configSchema.parse(cfg),
+});</code></pre>
+
+          <h3>Modular Config with Includes</h3>
+          <p><strong>config/app.colony:</strong></p>
+          <pre><code>@dims env;
+@include "./base.colony";
+@include "./database.colony";
+@include "./envs/${ctx.env}.colony";</code></pre>
+
+          <p><strong>config/base.colony:</strong></p>
+          <pre><code>*.app.name = "MyApp";
+*.app.version = "1.0.0";</code></pre>
+
+          <p><strong>config/database.colony:</strong></p>
+          <pre><code>*.database.port = 5432;
+*.database.pool.min = 2;
+*.database.pool.max = 10;</code></pre>
+
+          <p><strong>config/envs/prod.colony:</strong></p>
+          <pre><code>prod.database.host = "prod-db.internal";
+prod.database.pool.min = 10;
+prod.database.pool.max = 50;</code></pre>
+        </section>
+
+        <section id="troubleshooting">
+          <h2>Troubleshooting</h2>
+
+          <h3>Debug Which Rule Set a Value</h3>
+          <pre><code class="language-js">const config = await loadColony({ ... });
+const trace = config.explain("database.host");
+console.log(trace);
+// {
+//   op: "=",
+//   scope: ["prod"],
+//   specificity: 1,
+//   filePath: "/path/to/config/app.colony",
+//   line: 15,
+//   source: "/path/to/config/app.colony:15:1"
+// }</code></pre>
+
+          <h3>List All Config Keys</h3>
+          <pre><code class="language-js">const keys = config.keys();
+// ["app.name", "app.version", "database.host", ...]</code></pre>
+
+          <h3>Compare Environments</h3>
+          <pre><code>colony diff --entry ./config/app.colony --ctx1 "env=dev" --ctx2 "env=prod"</code></pre>
+
+          <h3>Check for Issues</h3>
+          <pre><code>colony lint --entry ./config/app.colony</code></pre>
+        </section>
+      </article>
+    </main>
+
+    <footer>
+      <a href="https://github.com/Zaxuhe/colony" target="_blank">GitHub</a>
+      <span>|</span>
+      <a href="https://www.npmjs.com/package/@ant.sh/colony" target="_blank">npm</a>
+    </footer>
+  </div>
+</body>
+</html>

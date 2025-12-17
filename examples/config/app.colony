@@ -1,0 +1,17 @@
+@dims env, realm, region;
+@include "./base.colony";
+@require precompute.aws.region, precompute.dynamodb.endpoint;
+
+# Region config
+*.*.*.precompute.aws.region := "us-east-1";
+prod.EU.eu-west-1.precompute.aws.region = "eu-west-1";
+
+# DynamoDB endpoint derived from ctx.region
+*.*.*.precompute.dynamodb.endpoint = "dynamodb.${ctx.region}.example.com";
+
+# Example append/remove
+*.*.*.bsfclient.defaultInterceptors += "@bsfclient.LoggingInterceptor";
+prod.*.*.bsfclient.defaultInterceptors -= "@bsfclient.LoggingInterceptor";
+
+# Env interpolation
+*.*.*.service.credentials = "com.mycompany.Service.credentials.${ENV:REALM}";

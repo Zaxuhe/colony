@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Colony Playground</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html" class="nav-link active">Playground</a>
+      <a href="docs.html" class="nav-link">Documentation</a>
+    </nav>
+    <header>
+      <h1>Colony Playground</h1>
+      <div class="controls">
+        <select id="examples">
+          <option value="">-- Load Example --</option>
+          <option value="basic">Basic (single dimension)</option>
+          <option value="multi-env">Multi-environment</option>
+          <option value="operators">Operators (=, :=, |=, +=, -=)</option>
+          <option value="scopes">Multi-dimension scopes</option>
+        </select>
+        <button id="share-btn" title="Copy shareable URL">Share</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="context-inputs">
+        <label>Context:</label>
+        <div id="dim-inputs" class="dim-inputs">
+          <!-- Dimension inputs will be generated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <main class="split-pane">
+      <div class="editor-pane">
+        <div class="pane-header">Editor</div>
+        <textarea id="editor">@dims env;
+
+# Default for all environments
+*.log.level = "info";
+*.debug = false;
+
+# Development overrides
+dev.log.level = "debug";
+dev.debug = true;
+
+# Production settings
+prod.log.level = "warn";
+prod.cache.enabled = true;
+prod.cache.ttl = 3600;
+</textarea>
+      </div>
+
+      <div class="output-pane">
+        <div class="pane-header">
+          <span>Output</span>
+          <div class="tabs">
+            <button class="tab active" data-tab="resolved">Resolved</button>
+            <button class="tab" data-tab="parsed">Parsed</button>
+          </div>
+        </div>
+        <pre id="output"></pre>
+        <div id="error" class="error hidden"></div>
+      </div>
+    </main>
+
+    <footer>
+      <a href="https://github.com/Zaxuhe/colony" target="_blank">GitHub</a>
+      <span>|</span>
+      <a href="https://www.npmjs.com/package/@ant.sh/colony" target="_blank">npm</a>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+  <script src="playground.bundle.js"></script>
+  <script src="playground.js"></script>
+</body>
+</html>
