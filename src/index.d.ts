@@ -60,6 +60,13 @@ export interface LoadColonyOptions {
   vars?: Record<string, string>;
   /** Schema validation hook (supports sync and async) */
   schema?: (cfg: ColonyConfig) => ColonyConfig | Promise<ColonyConfig>;
+  /**
+   * Load environment variables from dotenv file(s).
+   * - `true`: Load from [".env", ".env.local"]
+   * - `string`: Load from single file path
+   * - `string[]`: Load from multiple file paths (later files override)
+   */
+  dotenv?: boolean | string | string[];
   /** Security sandbox options */
   sandbox?: SandboxOptions;
   /** Warn when skipping already-visited includes */
@@ -340,3 +347,22 @@ export class OpenBaoProvider implements SecretProvider {
   fetch(key: string): Promise<string>;
   validate(): Promise<void>;
 }
+
+// ============================================================================
+// Dotenv
+// ============================================================================
+
+/**
+ * Parse dotenv file content and return key-value pairs
+ */
+export function parseDotenv(content: string): Record<string, string>;
+
+/**
+ * Load environment variables from a dotenv file
+ */
+export function loadDotenv(filePath: string): Promise<Record<string, string>>;
+
+/**
+ * Load multiple dotenv files (later files override earlier ones)
+ */
+export function loadDotenvFiles(filePaths: string[]): Promise<Record<string, string>>;

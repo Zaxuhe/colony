@@ -360,6 +360,11 @@ const config = await loadColony({
   schema: (cfg) => validate(cfg),    // Validation hook
   warnOnSkippedIncludes: false,
 
+  // Dotenv integration
+  dotenv: true,                      // Load .env and .env.local
+  // dotenv: ".env.production",      // Or specify a path
+  // dotenv: [".env", ".env.local"], // Or multiple paths
+
   // Security sandbox
   sandbox: {
     basePath: "./config",
@@ -989,6 +994,137 @@ const config = await loadColony({
 prod.database.host = "prod-db.internal";
 prod.database.pool.min = 10;
 prod.database.pool.max = 50;
+```
+
+---
+
+## Framework Integrations
+
+### Express.js
+
+```js
+// config/app.colony
+// @dims env;
+// *.server.port = 3000;
+// prod.server.port = 8080;
+
+import express from 'express';
+import { loadColony } from '@ant.sh/colony';
+
+const config = await loadColony({
+  entry: './config/app.colony',
+  ctx: { env: process.env.NODE_ENV || 'dev' },
+  dotenv: true,
+});
+
+const app = express();
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', env: process.env.NODE_ENV });
+});
+
+app.listen(config.server.port, () => {
+  console.log(`Server running on port ${config.server.port}`);
+});
+```
+
+### Fastify
+
+```js
+import Fastify from 'fastify';
+import { loadColony } from '@ant.sh/colony';
+
+const config = await loadColony({
+  entry: './config/app.colony',
+  ctx: { env: process.env.NODE_ENV || 'dev' },
+  dotenv: true,
+});
+
+const fastify = Fastify({
+  logger: config.log.enabled,
+});
+
+fastify.get('/health', async () => {
+  return { status: 'ok' };
+});
+
+await fastify.listen({
+  port: config.server.port,
+  host: config.server.host,
+});
+```
+
+### Next.js
+
+```js
+// lib/config.js
+import { loadColony } from '@ant.sh/colony';
+
+let configPromise = null;
+
+export async function getConfig() {
+  if (!configPromise) {
+    configPromise = loadColony({
+      entry: './config/app.colony',
+      ctx: { env: process.env.NODE_ENV || 'development' },
+      dotenv: ['.env', '.env.local'],
+    });
+  }
+  return configPromise;
+}
+
+// app/api/config/route.js
+import { getConfig } from '@/lib/config';
+
+export async function GET() {
+  const config = await getConfig();
+  return Response.json({
+    appName: config.app.name,
+    features: config.features,
+  });
+}
+```
+
+### Docker Compose
+
+Use Colony CLI to generate environment-specific configs:
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+    command: >
+      sh -c "
+        colony print -e ./config/app.colony -c 'env=prod' -f json > /app/config.json &&
+        node server.js
+      "
+```
+
+### Kubernetes ConfigMap
+
+Generate a ConfigMap from your Colony config:
+
+```bash
+# Generate config JSON
+colony print -e ./config/app.colony -c 'env=prod,region=us-east-1' -f json > config.json
+
+# Create ConfigMap
+kubectl create configmap myapp-config --from-file=config.json
+```
+
+Or inline in your deployment:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-config
+data:
+  config.json: |
+    # Output of: colony print -e ./config/app.colony -c 'env=prod'
 ```
 
 ---

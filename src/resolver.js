@@ -1,7 +1,7 @@
 import { applyInterpolationDeep } from "./strings.js";
 import { getDeep, setDeep, deepMerge, isPlainObject } from "./util.js";
 
-export function resolveRules({ rules, dims, ctx, vars, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
+export function resolveRules({ rules, dims, ctx, vars, env = null, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
   const indexed = [];
   for (const r of rules) {
     const scope = r.keySegments.slice(0, dims.length);
@@ -106,7 +106,7 @@ export function resolveRules({ rules, dims, ctx, vars, allowedEnvVars = null, al
     }
   }
 
-  const finalCfg = applyInterpolationDeep(out, { ctx, vars, allowedEnvVars, allowedVars, warnings });
+  const finalCfg = applyInterpolationDeep(out, { ctx, vars, env, allowedEnvVars, allowedVars, warnings });
 
   Object.defineProperties(finalCfg, {
     // Core methods

@@ -4,20 +4,23 @@ import { isPlainObject } from "./util.js";
 // Provider must start with uppercase letter, followed by uppercase letters, digits, or underscores
 const RX_SECRET_PROVIDER = /^[A-Z][A-Z0-9_]*:/;
 
-export function applyInterpolationDeep(value, { ctx, vars, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
-  if (typeof value === "string") return interpolate(value, { ctx, vars, allowedEnvVars, allowedVars, warnings });
-  if (Array.isArray(value)) return value.map((v) => applyInterpolationDeep(v, { ctx, vars, allowedEnvVars, allowedVars, warnings }));
+export function applyInterpolationDeep(value, { ctx, vars, env = null, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
+  if (typeof value === "string") return interpolate(value, { ctx, vars, env, allowedEnvVars, allowedVars, warnings });
+  if (Array.isArray(value)) return value.map((v) => applyInterpolationDeep(v, { ctx, vars, env, allowedEnvVars, allowedVars, warnings }));
   if (isPlainObject(value)) {
     const out = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = applyInterpolationDeep(v, { ctx, vars, allowedEnvVars, allowedVars, warnings });
+      out[k] = applyInterpolationDeep(v, { ctx, vars, env, allowedEnvVars, allowedVars, warnings });
     }
     return out;
   }
   return value;
 }
 
-export function interpolate(s, { ctx, vars, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
+export function interpolate(s, { ctx, vars, env = null, allowedEnvVars = null, allowedVars = null, warnings = [] }) {
+  // Merge env with process.env (env takes precedence)
+  const envSource = env ? { ...process.env, ...env } : process.env;
+
   return s.replace(/\$\{([^}]+)\}/g, (match, exprRaw) => {
     const expr = exprRaw.trim();
 
@@ -32,7 +35,7 @@ export function interpolate(s, { ctx, vars, allowedEnvVars = null, allowedVars =
         });
         return "";
       }
-      return process.env[k] ?? "";
+      return envSource[k] ?? "";
     }
 
     if (expr.startsWith("VAR:")) {

@@ -27,6 +27,7 @@
             <li><a href="#security">Security</a></li>
             <li><a href="#typescript">TypeScript</a></li>
             <li><a href="#examples">Examples</a></li>
+            <li><a href="#framework-integrations">Framework Integrations</a></li>
           </ul>
         </nav>
       </aside>
@@ -253,6 +254,11 @@ const config = await loadColony({
   vars: { ROOT: "/app" },            // Custom ${VAR:*} values
   schema: (cfg) => validate(cfg),    // Validation hook
   warnOnSkippedIncludes: false,
+
+  // Dotenv integration
+  dotenv: true,                      // Load .env and .env.local
+  // dotenv: ".env.production",      // Or specify a path
+  // dotenv: [".env", ".env.local"], // Or multiple paths
 
   // Security sandbox
   sandbox: {
@@ -649,6 +655,101 @@ const config = await loadColony({
           <pre><code>prod.database.host = "prod-db.internal";
 prod.database.pool.min = 10;
 prod.database.pool.max = 50;</code></pre>
+        </section>
+
+        <section id="framework-integrations">
+          <h2>Framework Integrations</h2>
+
+          <h3>Express.js</h3>
+          <pre><code class="language-js">import express from 'express';
+import { loadColony } from '@ant.sh/colony';
+
+const config = await loadColony({
+  entry: './config/app.colony',
+  ctx: { env: process.env.NODE_ENV || 'dev' },
+  dotenv: true,
+});
+
+const app = express();
+
+app.get('/health', (req, res) =&gt; {
+  res.json({ status: 'ok', env: process.env.NODE_ENV });
+});
+
+app.listen(config.server.port, () =&gt; {
+  console.log(`Server running on port ${config.server.port}`);
+});</code></pre>
+
+          <h3>Fastify</h3>
+          <pre><code class="language-js">import Fastify from 'fastify';
+import { loadColony } from '@ant.sh/colony';
+
+const config = await loadColony({
+  entry: './config/app.colony',
+  ctx: { env: process.env.NODE_ENV || 'dev' },
+  dotenv: true,
+});
+
+const fastify = Fastify({
+  logger: config.log.enabled,
+});
+
+fastify.get('/health', async () =&gt; {
+  return { status: 'ok' };
+});
+
+await fastify.listen({
+  port: config.server.port,
+  host: config.server.host,
+});</code></pre>
+
+          <h3>Next.js</h3>
+          <pre><code class="language-js">// lib/config.js
+import { loadColony } from '@ant.sh/colony';
+
+let configPromise = null;
+
+export async function getConfig() {
+  if (!configPromise) {
+    configPromise = loadColony({
+      entry: './config/app.colony',
+      ctx: { env: process.env.NODE_ENV || 'development' },
+      dotenv: ['.env', '.env.local'],
+    });
+  }
+  return configPromise;
+}
+
+// app/api/config/route.js
+import { getConfig } from '@/lib/config';
+
+export async function GET() {
+  const config = await getConfig();
+  return Response.json({
+    appName: config.app.name,
+    features: config.features,
+  });
+}</code></pre>
+
+          <h3>Docker Compose</h3>
+          <pre><code class="language-yaml"># docker-compose.yml
+services:
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+    command: &gt;
+      sh -c "
+        colony print -e ./config/app.colony -c 'env=prod' -f json &gt; /app/config.json &amp;&amp;
+        node server.js
+      "</code></pre>
+
+          <h3>Kubernetes ConfigMap</h3>
+          <pre><code># Generate config JSON
+colony print -e ./config/app.colony -c 'env=prod,region=us-east-1' -f json &gt; config.json
+
+# Create ConfigMap
+kubectl create configmap myapp-config --from-file=config.json</code></pre>
         </section>
 
         <section id="troubleshooting">

@@ -11,6 +11,7 @@ import {
   unregisterSecretProvider,
   clearSecretProviders,
 } from "./secrets.js";
+import { loadDotenvFiles, parseDotenv } from "./dotenv.js";
 
 // Re-export secrets functions
 export { registerSecretProvider, unregisterSecretProvider, clearSecretProviders };
@@ -20,6 +21,9 @@ export { AwsSecretsProvider } from "./providers/aws.js";
 export { VaultProvider } from "./providers/vault.js";
 export { OpenBaoProvider } from "./providers/openbao.js";
 
+// Re-export dotenv functions
+export { parseDotenv, loadDotenv, loadDotenvFiles } from "./dotenv.js";
+
 /**
  * @param {object} opts
  * @param {string} opts.entry
@@ -27,6 +31,7 @@ export { OpenBaoProvider } from "./providers/openbao.js";
  * @param {Record<string,string>=} opts.ctx
  * @param {Record<string,string>=} opts.vars
  * @param {(cfg: any) => any=} opts.schema   // optional validation hook (e.g. zod.parse)
+ * @param {string|string[]|boolean=} opts.dotenv   // dotenv file path(s), or true for ['.env', '.env.local']
  * @param {object=} opts.sandbox   // security options
  * @param {string=} opts.sandbox.basePath   // restrict includes to this directory
  * @param {string[]=} opts.sandbox.allowedEnvVars   // whitelist of allowed env vars (null = allow all)
@@ -80,6 +85,22 @@ export async function loadColony(opts) {
 
   const vars = { ROOT: process.cwd(), ...(opts.vars ?? {}) };
 
+  // Load dotenv files if configured
+  let env = null;
+  if (opts.dotenv) {
+    let dotenvPaths;
+    if (opts.dotenv === true) {
+      dotenvPaths = [".env", ".env.local"];
+    } else if (typeof opts.dotenv === "string") {
+      dotenvPaths = [opts.dotenv];
+    } else if (Array.isArray(opts.dotenv)) {
+      dotenvPaths = opts.dotenv;
+    }
+    if (dotenvPaths) {
+      env = await loadDotenvFiles(dotenvPaths);
+    }
+  }
+
   // Collect requires from all parsed files
   const requires = parsed.flatMap((p) => p.requires ?? []);
 
@@ -87,7 +108,7 @@ export async function loadColony(opts) {
 
   const allowedEnvVars = sandbox.allowedEnvVars ?? null;
   const allowedVars = sandbox.allowedVars ?? null;
-  let cfg = resolveRules({ rules: allRules, dims, ctx, vars, allowedEnvVars, allowedVars, warnings });
+  let cfg = resolveRules({ rules: allRules, dims, ctx, vars, env, allowedEnvVars, allowedVars, warnings });
 
   // Apply secrets if providers are configured
   const secretsOpts = opts.secrets ?? {};

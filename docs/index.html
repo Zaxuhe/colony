@@ -29,9 +29,15 @@
 
     <div class="toolbar">
       <div class="context-inputs">
-        <label>Context:</label>
+        <label id="context-label">Context:</label>
         <div id="dim-inputs" class="dim-inputs">
           <!-- Dimension inputs will be generated dynamically -->
+        </div>
+      </div>
+      <div class="context-inputs diff-context hidden" id="diff-context">
+        <label>vs:</label>
+        <div id="dim-inputs-2" class="dim-inputs">
+          <!-- Second dimension inputs for diff mode -->
         </div>
       </div>
     </div>
@@ -61,6 +67,7 @@ prod.cache.ttl = 3600;
           <span>Output</span>
           <div class="tabs">
             <button class="tab active" data-tab="resolved">Resolved</button>
+            <button class="tab" data-tab="diff">Diff</button>
             <button class="tab" data-tab="parsed">Parsed</button>
           </div>
         </div>

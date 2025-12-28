@@ -5,6 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/@ant.sh/colony.svg)](https://www.npmjs.com/package/@ant.sh/colony)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+**[Try it in the Playground](https://colony.ant.sh)**
+
 ```
 # config/app.colony
 *.database.host = "localhost";
@@ -157,13 +159,17 @@ console.log(`Database: ${config.database.host}`);
 
 ## Documentation
 
-See [DOCS.md](./DOCS.md) for complete documentation including:
+- **[Interactive Playground](https://colony.ant.sh)** - Try Colony in your browser
+- **[Online Docs](https://colony.ant.sh/docs.html)** - Full documentation
+- **[DOCS.md](./DOCS.md)** - Local documentation file
 
+Topics covered:
 - Config syntax reference
 - All operators (`=`, `:=`, `+=`, `-=`, `|=`)
 - Interpolation patterns
 - Secret providers
 - Security sandbox options
+- Framework integrations (Express, Fastify, Next.js)
 - API reference
 - TypeScript types
 
